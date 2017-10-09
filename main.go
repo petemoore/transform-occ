@@ -96,7 +96,6 @@ func main() {
 	fmt.Println(``)
 	fmt.Println(`md C:\logs`)
 	fmt.Println(`md C:\binaries`)
-	fmt.Println(``)
 
 	for _, c := range orderedComponents {
 		fmt.Println("")
