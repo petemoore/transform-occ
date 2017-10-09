@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -33,8 +35,16 @@ type (
 	}
 )
 
+func (c ComponentKey) String() string {
+	return fmt.Sprintf("{ComponentName: '%v', ComponentType: '%v'}", c.ComponentName, c.ComponentType)
+}
+
 func main() {
-	resp, err := http.Get("https://raw.githubusercontent.com/mozilla-releng/OpenCloudConfig/master/userdata/Manifest/gecko-1-b-win2012.json")
+	if len(os.Args) != 2 {
+		log.Fatal("Please specify a single workerType, e.g. `transform-occ gecko-1-b-win2012`")
+	}
+	workerType := os.Args[1]
+	resp, err := http.Get("https://raw.githubusercontent.com/mozilla-releng/OpenCloudConfig/master/userdata/Manifest/" + workerType + ".json")
 	if err != nil {
 		panic(err)
 	}
@@ -46,7 +56,10 @@ func main() {
 		panic(err)
 	}
 
-	orderedComponents := OrderComponents(o.Components)
+	orderedComponents, err := OrderComponents(o.Components)
+	if err != nil {
+		panic(err)
+	}
 	logCount := 0
 	for _, c := range orderedComponents {
 		fmt.Println("")
@@ -83,32 +96,102 @@ func main() {
 	}
 }
 
+type DependencyDoesNotExist struct {
+	ComponentKey  ComponentKey
+	Dependency    ComponentKey
+	ComponentList []Component
+}
+
+func (d *DependencyDoesNotExist) Error() string {
+	return fmt.Sprintf("Component %v depends on %v which is not defined in component list", d.ComponentKey, d.Dependency)
+}
+
+type DuplicateComponentKey struct {
+	Key           ComponentKey
+	ComponentList []Component
+}
+
+func (d *DuplicateComponentKey) Error() string {
+	return fmt.Sprintf("Duplicate component key found: %v", d.Key)
+}
+
+type CyclicDependency struct {
+	Key           ComponentKey
+	Chain         []ComponentKey
+	ComponentList []Component
+}
+
+func (d *CyclicDependency) Error() string {
+	keyStrings := make([]string, len(d.Chain), len(d.Chain))
+	for i, key := range d.Chain {
+		keyStrings[i] = key.String()
+	}
+	return "Cyclic dependency found in component list: " + strings.Join(keyStrings, " -> ") + " -> " + d.Key.String()
+}
+
 // OrderComponents will return a sorted copy of comps such that dependencies of
-// a component appear earlier in the list than the component itself. Cyclic
-// dependencies are not checked for.
-func OrderComponents(comps []Component) (ordered []Component) {
+// a component appear earlier in the list than the component itself. Returns an
+// error if there is a cyclic dependency, or if comps contains non-unique
+// component keys.
+func OrderComponents(comps []Component) (ordered []Component, err error) {
 	ordered = make([]Component, len(comps), len(comps))
 	i := 0
 	addedKeys := map[ComponentKey]bool{}
 	compByKey := map[ComponentKey]Component{}
 	for _, c := range comps {
 		key := ComponentKey{ComponentName: c.ComponentName, ComponentType: c.ComponentType}
+		if _, exists := compByKey[key]; exists {
+			return nil, &DuplicateComponentKey{
+				ComponentList: comps,
+				Key:           key,
+			}
+		}
 		compByKey[key] = c
 	}
-	var add func(c Component)
-	add = func(c Component) {
-		key := ComponentKey{ComponentName: c.ComponentName, ComponentType: c.ComponentType}
-		if !addedKeys[key] {
-			for _, d := range c.DependsOn {
-				add(compByKey[d])
+	for key, comp := range compByKey {
+		for _, dependency := range comp.DependsOn {
+			if _, exists := compByKey[dependency]; !exists {
+				return nil, &DependencyDoesNotExist{
+					ComponentKey:  key,
+					Dependency:    dependency,
+					ComponentList: comps,
+				}
 			}
-			ordered[i] = c
+		}
+	}
+	var add func(key ComponentKey, dependencyChain []ComponentKey) error
+	add = func(key ComponentKey, dependencyChain []ComponentKey) error {
+		if !addedKeys[key] {
+			// maintaining a map of keys may have been more efficient, but would require more complex code
+			// so just loop through all keys in dependency chain for now
+			for _, k := range dependencyChain {
+				if key == k {
+					return &CyclicDependency{
+						Key:           key,
+						Chain:         dependencyChain,
+						ComponentList: comps,
+					}
+				}
+			}
+			dependencyChain = append(dependencyChain, key)
+			for _, d := range compByKey[key].DependsOn {
+				err = add(d, dependencyChain)
+				if err != nil {
+					return err
+				}
+			}
+			ordered[i] = compByKey[key]
 			addedKeys[key] = true
 			i++
 		}
+		return nil
 	}
 	for _, c := range comps {
-		add(c)
+		key := ComponentKey{ComponentName: c.ComponentName, ComponentType: c.ComponentType}
+		err = add(key, []ComponentKey{})
+		if err != nil {
+			return nil, err
+		}
 	}
 	return
 }
