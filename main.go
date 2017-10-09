@@ -15,19 +15,32 @@ type (
 	}
 	Component struct {
 		ComponentKey
-		Arguments []string       `json:"Arguments"`
-		Command   string         `json:"Command"`
-		Comment   string         `json:"Comment"`
-		Path      string         `json:"Path"`
-		URL       string         `json:"Url"`
-		Name      string         `json:"Name"`
-		ProductID string         `json:"ProductId"`
-		SHA512    string         `json:"sha512"`
-		Source    string         `json:"Source"`
-		Target    string         `json:"Target"`
-		Value     string         `json:"Value"`
-		Values    []string       `json:"Values"`
-		DependsOn []ComponentKey `json:"DependsOn"`
+		Action      string         `json:"Action"`
+		Arguments   []string       `json:"Arguments"`
+		Command     string         `json:"Command"`
+		Comment     string         `json:"Comment"`
+		DependsOn   []ComponentKey `json:"DependsOn"`
+		Destination string         `json:"Destination"`
+		Direction   string         `json:"Direction"`
+		Hex         bool           `json:"Hex"`
+		Key         string         `json:"Key"`
+		Link        string         `json:"Link"`
+		LocalPort   uint           `json:"LocalPort"`
+		Name        string         `json:"Name"`
+		Path        string         `json:"Path"`
+		ProductID   string         `json:"ProductId"`
+		Protocol    string         `json:"Protocol"`
+		SHA512      string         `json:"sha512"`
+		Source      string         `json:"Source"`
+		StartupType string         `json:"StartupType"`
+		State       string         `json:"State"`
+		Target      string         `json:"Target"`
+		URL         string         `json:"Url"`
+		Value       string         `json:"Value"`
+		ValueData   string         `json:"ValueData"`
+		ValueName   string         `json:"ValueName"`
+		ValueType   string         `json:"ValueType"`
+		Values      []string       `json:"Values"`
 	}
 	ComponentKey struct {
 		ComponentName string `json:"ComponentName"`
@@ -61,6 +74,30 @@ func main() {
 		panic(err)
 	}
 	logCount := 0
+	downloadCount := 0
+
+	fmt.Println(`# capture env`)
+	fmt.Println(`Get-ChildItem Env: | Out-File "C:\install_env.txt"`)
+	fmt.Println(``)
+	fmt.Println(`# needed for making http requests`)
+	fmt.Println(`$client = New-Object system.net.WebClient`)
+	fmt.Println(`$shell = new-object -com shell.application`)
+	fmt.Println(``)
+	fmt.Println(`# utility function to download a zip file and extract it`)
+	fmt.Println(`function Expand-ZIPFile($file, $destination, $url)`)
+	fmt.Println(`{`)
+	fmt.Println(`    $client.DownloadFile($url, $file)`)
+	fmt.Println(`    $zip = $shell.NameSpace($file)`)
+	fmt.Println(`    foreach($item in $zip.items())`)
+	fmt.Println(`    {`)
+	fmt.Println(`        $shell.Namespace($destination).copyhere($item)`)
+	fmt.Println(`    }`)
+	fmt.Println(`}`)
+	fmt.Println(``)
+	fmt.Println(`md C:\logs`)
+	fmt.Println(`md C:\binaries`)
+	fmt.Println(``)
+
 	for _, c := range orderedComponents {
 		fmt.Println("")
 		fmt.Println("# " + c.ComponentName + ": " + c.Comment)
@@ -68,7 +105,7 @@ func main() {
 		case "ChecksumFileDownload":
 			fmt.Printf(`$client.DownloadFile("%s", "%s")`+"\n", c.Source, c.Target)
 		case "CommandRun":
-			fmt.Printf(`Start-Process "%s" -ArgumentList "%s" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "C:\logs\%v.log" -RedirectStandardError "C:\logs\%v.log"`+"\n", c.Command, strings.Join(c.Arguments, " "), logCount, logCount)
+			fmt.Printf(`Start-Process "%s" -ArgumentList "%s" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "C:\logs\%v.out.txt" -RedirectStandardError "C:\logs\%v.err.log"`+"\n", c.Command, strings.Replace(strings.Replace(strings.Join(c.Arguments, " "), `"`, "`\"", -1), "`", "``", -1), logCount, logCount)
 			logCount++
 		case "DirectoryCreate":
 			fmt.Printf(`md "%s"`+"\n", c.Path)
@@ -79,21 +116,54 @@ func main() {
 		case "EnvironmentVariableUniquePrepend":
 			fmt.Printf(`[Environment]::SetEnvironmentVariable("%s", "%s;%%%s%%", "%s")`+"\n", c.Name, strings.Join(c.Values, ";"), c.Name, c.Target)
 		case "ExeInstall":
-			fmt.Printf(`$client.DownloadFile("%s", "%s")`+"\n", c.URL, "C:\\temp.exe")
-			fmt.Printf(`Start-Process "%s" -ArgumentList "%s" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "C:\logs\%v.log" -RedirectStandardError "C:\logs\%v.log"`+"\n", "C:\\temp.exe", strings.Join(c.Arguments, " "), logCount, logCount)
+			fmt.Printf(`$client.DownloadFile("%s", "C:\binaries\%v.exe")`+"\n", c.URL, downloadCount)
+			fmt.Printf(`Start-Process "C:\binaries\%v.exe" -ArgumentList "%s" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "C:\logs\%v.out.log" -RedirectStandardError "C:\logs\%v.err.log"`+"\n", downloadCount, strings.Join(c.Arguments, " "), logCount, logCount)
+			downloadCount++
 			logCount++
 		case "FileDownload":
 			fmt.Printf(`$client.DownloadFile("%s", "%s")`+"\n", c.Source, c.Target)
 		case "FirewallRule":
+			fmt.Printf(`New-NetFirewallRule -DisplayName "%v (%v %v %v): %v" -Direction %v -LocalPort %v -Protocol %v -Action %v`+"\n", c.ComponentName, c.Protocol, c.LocalPort, c.Direction, c.Action, c.Direction, c.LocalPort, c.Protocol, c.Action)
 		case "MsiInstall":
+			fmt.Printf(`$client.DownloadFile("%v", "C:\binaries\%v.msi")`+"\n", c.URL, downloadCount)
+			fmt.Printf(`Start-Process "msiexec" -ArgumentList "/i C:\binaries\%v.msi /quiet" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "C:\logs\%v.out.log" -RedirectStandardError "C:\logs\%v.err.log"`+"\n", downloadCount, logCount, logCount)
+			downloadCount++
+			logCount++
 		case "RegistryKeySet":
+			fmt.Printf(`New-Item -Path "%v" -Force`+"\n", PSPath(c.Key+`\`+c.ValueName))
 		case "RegistryValueSet":
+			fmt.Printf(`New-ItemProperty -Path "%v" -Name "%v" -Value "%v" -PropertyType %v -Force`+"\n", PSPath(c.Key), c.ValueName, c.ValueData, c.ValueType)
 		case "ServiceControl":
+			fmt.Printf(`Set-Service "%v" -StartupType %v -Status %v`+"\n", c.Name, c.StartupType, c.State)
 		case "SymbolicLink":
+			fmt.Printf(`cmd /c mklink "%v" "%v"`+"\n", c.Link, c.Target)
 		case "WindowsFeatureInstall":
+			fmt.Printf(`Install-WindowsFeature %v`+"\n", c.Name)
 		case "ZipInstall":
+			fmt.Printf(`Expand-ZIPFile -File "C:\binaries\%v.zip" -Destination "%v" -Url "%v"`+"\n", downloadCount, c.Destination, c.URL)
+			downloadCount++
+		default:
+			log.Fatalf("Do not know how to convert component type '%v' into raw powershell code", c.ComponentType)
 		}
 	}
+}
+
+// PSPath takes a fully qualified registry path, and returns the powershell path representation.
+//  `HKEY_CURRENT_USER\<x>` -> `HKCU:<x>`
+//  `HKEY_LOCAL_MACHINE\<x>` -> `HKLM:<x>`
+// If path does not match one of these expressions, it will be returned unaltered.
+func PSPath(path string) string {
+	psPath := path
+	for i, j := range map[string]string{
+		`HKEY_CURRENT_USER\`:  `HKCU:`,
+		`HKEY_LOCAL_MACHINE\`: `HKLM:`,
+	} {
+		if strings.HasPrefix(path, i) {
+			psPath = j + path[len(i):]
+			break
+		}
+	}
+	return psPath
 }
 
 type DependencyDoesNotExist struct {
