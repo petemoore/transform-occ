@@ -201,7 +201,8 @@ func (d *CyclicDependency) Error() string {
 // OrderComponents will return a sorted copy of comps such that dependencies of
 // a component appear earlier in the list than the component itself. Returns an
 // error if there is a cyclic dependency, or if comps contains non-unique
-// component keys.
+// component keys, or if a component refers to a dependency which is not in the
+// list.
 func OrderComponents(comps []Component) (ordered []Component, err error) {
 	ordered = make([]Component, len(comps), len(comps))
 	i := 0
