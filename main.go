@@ -84,7 +84,7 @@ func main() {
 	fmt.Println(`$shell = new-object -com shell.application`)
 	fmt.Println(``)
 	fmt.Println(`# utility function to download a zip file and extract it`)
-	fmt.Println(`function Expand-ZIPFile($file, $destination, $url)`)
+	fmt.Println(`function Extract-ZIPFile($file, $destination, $url)`)
 	fmt.Println(`{`)
 	fmt.Println(`    $client.DownloadFile($url, $file)`)
 	fmt.Println(`    $zip = $shell.NameSpace($file)`)
@@ -139,7 +139,8 @@ func main() {
 		case "WindowsFeatureInstall":
 			fmt.Printf(`Install-WindowsFeature %v`+"\n", c.Name)
 		case "ZipInstall":
-			fmt.Printf(`Expand-ZIPFile -File "C:\binaries\%v.zip" -Destination "%v" -Url "%v"`+"\n", downloadCount, c.Destination, c.URL)
+			fmt.Printf(`New-Item -ItemType Directory -Force -Path "%v"`+"\n", c.Destination)
+			fmt.Printf(`Extract-ZIPFile -File "C:\binaries\%v.zip" -Destination "%v" -Url "%v"`+"\n", downloadCount, c.Destination, c.URL)
 			downloadCount++
 		default:
 			log.Fatalf("Do not know how to convert component type '%v' into raw powershell code", c.ComponentType)
