@@ -52,6 +52,10 @@ func (c ComponentKey) String() string {
 	return fmt.Sprintf("{ComponentName: '%v', ComponentType: '%v'}", c.ComponentName, c.ComponentType)
 }
 
+func PSEscape(s string) string {
+	return strings.Replace(strings.Replace(s, "`", "``", -1), `"`, "`\"", -1)
+}
+
 func main() {
 	if len(os.Args) != 2 {
 		log.Fatal("Please specify a single workerType, e.g. `transform-occ gecko-1-b-win2012`")
@@ -104,7 +108,7 @@ func main() {
 		case "ChecksumFileDownload":
 			fmt.Printf(`$client.DownloadFile("%s", "%s")`+"\n", c.Source, c.Target)
 		case "CommandRun":
-			fmt.Printf(`Start-Process "%s" -ArgumentList "%s" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "C:\logs\%v.out.txt" -RedirectStandardError "C:\logs\%v.err.log"`+"\n", c.Command, strings.Replace(strings.Replace(strings.Join(c.Arguments, " "), `"`, "`\"", -1), "`", "``", -1), logCount, logCount)
+			fmt.Printf(`Start-Process "%s" -ArgumentList "%s" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "C:\logs\%v.out.txt" -RedirectStandardError "C:\logs\%v.err.log"`+"\n", c.Command, PSEscape(strings.Join(c.Arguments, " ")), logCount, logCount)
 			logCount++
 		case "DirectoryCreate":
 			fmt.Printf(`md "%s"`+"\n", c.Path)
@@ -116,7 +120,7 @@ func main() {
 			fmt.Printf(`[Environment]::SetEnvironmentVariable("%s", "%s;%%%s%%", "%s")`+"\n", c.Name, strings.Join(c.Values, ";"), c.Name, c.Target)
 		case "ExeInstall":
 			fmt.Printf(`$client.DownloadFile("%s", "C:\binaries\%v.exe")`+"\n", c.URL, downloadCount)
-			fmt.Printf(`Start-Process "C:\binaries\%v.exe" -ArgumentList "%s" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "C:\logs\%v.out.log" -RedirectStandardError "C:\logs\%v.err.log"`+"\n", downloadCount, strings.Join(c.Arguments, " "), logCount, logCount)
+			fmt.Printf(`Start-Process "C:\binaries\%v.exe" -ArgumentList "%s" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "C:\logs\%v.out.log" -RedirectStandardError "C:\logs\%v.err.log"`+"\n", downloadCount, PSEscape(strings.Join(c.Arguments, " ")), logCount, logCount)
 			downloadCount++
 			logCount++
 		case "FileDownload":
