@@ -102,7 +102,11 @@ func main() {
 
 	for _, c := range orderedComponents {
 		fmt.Println("")
-		fmt.Println("# " + c.ComponentName + ": " + c.Comment)
+		if c.Comment != "" {
+			fmt.Println("# " + c.ComponentName + ": " + c.Comment)
+		} else {
+			fmt.Println("# " + c.ComponentName)
+		}
 		switch c.ComponentType {
 		case "ChecksumFileDownload":
 			fmt.Printf(`$client.DownloadFile("%s", "%s")`+"\n", c.Source, c.Target)
