@@ -77,7 +77,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	logCount := 0
 	downloadCount := 0
 
 	fmt.Println(`# capture env`)
@@ -108,8 +107,7 @@ func main() {
 		case "ChecksumFileDownload":
 			fmt.Printf(`$client.DownloadFile("%s", "%s")`+"\n", c.Source, c.Target)
 		case "CommandRun":
-			fmt.Printf(`Start-Process "%s" -ArgumentList "%s" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "C:\logs\%v.out.txt" -RedirectStandardError "C:\logs\%v.err.log"`+"\n", c.Command, PSEscape(strings.Join(c.Arguments, " ")), logCount, logCount)
-			logCount++
+			fmt.Printf(`Start-Process "%s" -ArgumentList "%s" -Wait -NoNewWindow`+"\n", c.Command, PSEscape(strings.Join(c.Arguments, " ")))
 		case "DirectoryCreate":
 			fmt.Printf(`md "%s"`+"\n", c.Path)
 		case "DisableIndexing":
@@ -120,18 +118,16 @@ func main() {
 			fmt.Printf(`[Environment]::SetEnvironmentVariable("%s", "%s;%%%s%%", "%s")`+"\n", c.Name, strings.Join(c.Values, ";"), c.Name, c.Target)
 		case "ExeInstall":
 			fmt.Printf(`$client.DownloadFile("%s", "C:\binaries\%v.exe")`+"\n", c.URL, downloadCount)
-			fmt.Printf(`Start-Process "C:\binaries\%v.exe" -ArgumentList "%s" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "C:\logs\%v.out.log" -RedirectStandardError "C:\logs\%v.err.log"`+"\n", downloadCount, PSEscape(strings.Join(c.Arguments, " ")), logCount, logCount)
+			fmt.Printf(`Start-Process "C:\binaries\%v.exe" -ArgumentList "%s" -Wait -NoNewWindow`+"\n", downloadCount, PSEscape(strings.Join(c.Arguments, " ")))
 			downloadCount++
-			logCount++
 		case "FileDownload":
 			fmt.Printf(`$client.DownloadFile("%s", "%s")`+"\n", c.Source, c.Target)
 		case "FirewallRule":
 			fmt.Printf(`New-NetFirewallRule -DisplayName "%v (%v %v %v): %v" -Direction %v -LocalPort %v -Protocol %v -Action %v`+"\n", c.ComponentName, c.Protocol, c.LocalPort, c.Direction, c.Action, c.Direction, c.LocalPort, c.Protocol, c.Action)
 		case "MsiInstall":
 			fmt.Printf(`$client.DownloadFile("%v", "C:\binaries\%v.msi")`+"\n", c.URL, downloadCount)
-			fmt.Printf(`Start-Process "msiexec" -ArgumentList "/i C:\binaries\%v.msi /quiet" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "C:\logs\%v.out.log" -RedirectStandardError "C:\logs\%v.err.log"`+"\n", downloadCount, logCount, logCount)
+			fmt.Printf(`Start-Process "msiexec" -ArgumentList "/i C:\binaries\%v.msi /quiet" -Wait -NoNewWindow`+"\n", downloadCount)
 			downloadCount++
-			logCount++
 		case "RegistryKeySet":
 			fmt.Printf(`New-Item -Path "%v" -Force`+"\n", PSPath(c.Key+`\`+c.ValueName))
 		case "RegistryValueSet":
